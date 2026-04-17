@@ -25,18 +25,17 @@ enum CallStatus {
 
 enum EmergencyType {
   MEDICAL
-  FIRE
   CRIME
   ACCIDENT
-  NATURAL_DISASTER
   OTHER
 }
 
 enum Priority {
-  CRITICAL // vida en peligro inmediato → va directo a operador
-  HIGH     // urgente
-  MEDIUM   // importante
-  LOW      // no urgente
+  CRITICAL   // vida en peligro inmediato → va directo a operador
+  HIGH       // urgente
+  MEDIUM     // importante
+  LOW        // no urgente
+  IRRELEVANT // llamada falsa o que no requiere atención
 }
 
 enum EmergencyStatus {

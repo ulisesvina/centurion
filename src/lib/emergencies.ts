@@ -7,6 +7,7 @@ const PRIORITY_ORDER: Record<Priority, number> = {
   HIGH: 1,
   MEDIUM: 2,
   LOW: 3,
+  IRRELEVANT: 4,
 };
 
 export async function createEmergency(data: {
