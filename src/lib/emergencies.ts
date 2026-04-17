@@ -46,7 +46,7 @@ export async function listPendingEmergencies() {
     where: { status: { in: ["PENDING", "ASSIGNED", "IN_PROGRESS"] } },
     include: {
       call: { select: { phoneNumber: true, createdAt: true } },
-      assignment: { include: { operator: { select: { name: true } } } },
+      assignment: { include: { operator: { select: { name: true, id: true } } } },
     },
   });
 
