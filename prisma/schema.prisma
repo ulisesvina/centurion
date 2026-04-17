@@ -1,0 +1,119 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum CallStatus {
+  PENDING    // esperando que el bot procese
+  ACTIVE     // bot tomando la llamada
+  CLASSIFIED // IA clasificó la emergencia
+  RESOLVED   // caso cerrado
+  ABANDONED  // el ciudadano colgó
+}
+
+enum EmergencyType {
+  MEDICAL
+  FIRE
+  CRIME
+  ACCIDENT
+  NATURAL_DISASTER
+  OTHER
+}
+
+enum Priority {
+  CRITICAL // vida en peligro inmediato → va directo a operador
+  HIGH     // urgente
+  MEDIUM   // importante
+  LOW      // no urgente
+}
+
+enum EmergencyStatus {
+  PENDING     // sin asignar
+  ASSIGNED    // operador asignado
+  IN_PROGRESS // operador atendiendo
+  RESOLVED    // resuelto
+}
+
+enum OperatorStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
+// ─────────────────────────────────────────────
+// MODELOS
+// ─────────────────────────────────────────────
+
+// Llamada entrante del ciudadano
+model Call {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  phoneNumber String
+  status      CallStatus @default(PENDING)
+  transcript  String?    // conversación completa con el bot de IA
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  emergency Emergency?
+}
+
+// Emergencia clasificada por la IA a partir de la llamada
+model Emergency {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  callId      String          @unique @db.ObjectId
+  call        Call            @relation(fields: [callId], references: [id])
+
+  type        EmergencyType
+  priority    Priority
+  description String          // resumen generado por la IA
+  status      EmergencyStatus @default(PENDING)
+
+  // Ubicación del incidente
+  latitude    Float?
+  longitude   Float?
+  address     String?
+
+  aiMetadata  Json?           // datos crudos del modelo de IA (scores, confianza, etc.)
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  assignment Assignment?
+}
+
+// Operador humano del 911
+model Operator {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  email       String         @unique
+  badgeNumber String         @unique
+  status      OperatorStatus @default(OFFLINE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  assignments Assignment[]
+}
+
+// Asignación de una emergencia a un operador
+model Assignment {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  emergencyId String    @unique @db.ObjectId
+  emergency   Emergency @relation(fields: [emergencyId], references: [id])
+  operatorId  String    @db.ObjectId
+  operator    Operator  @relation(fields: [operatorId], references: [id])
+
+  assignedAt  DateTime  @default(now())
+  resolvedAt  DateTime?
+  notes       String?   // notas del operador al cerrar el caso
+}
