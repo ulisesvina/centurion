@@ -1,25 +1,30 @@
 import { NextRequest } from "next/server";
-import { getCallById } from "@/lib/calls";
+import { getCallById, updateCall } from "@/lib/calls";
 import { createEmergency } from "@/lib/emergencies";
 import { classifyTranscript } from "@/lib/ai";
+import { prisma } from "@/lib/prisma";
 
 // POST /api/calls/:id/classify
 //
-// Dispara la clasificación de una llamada con IA.
-// Lo llama el bot cuando termina de grabar el transcript completo.
+// El bot llama este endpoint cuando termina la conversación con el ciudadano.
+//
+// Body (todo opcional salvo transcript si no fue guardado antes):
+// {
+//   user?: { name: string; address?: { street, extNumber, intNumber?, neighborhood, city, state, postalCode, references?, latitude?, longitude? } }
+// }
 //
 // Flujo:
-//   1. Lee la llamada de la DB
-//   2. Manda el transcript a la IA  ← TODO: implementar en src/lib/ai.ts
-//   3. Crea la Emergency con el resultado
-//   4. Devuelve la emergencia creada (con su prioridad asignada)
+//   1. Lee la llamada
+//   2. Si viene `user`, crea el User + Address y los vincula a la Call
+//   3. Manda el transcript a la IA
+//   4. Crea la Emergency con el resultado
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const body = await request.json().catch(() => ({}));
 
-  // 1. Obtener la llamada
   const call = await getCallById(id);
 
   if (!call) {
@@ -37,20 +42,43 @@ export async function POST(
     );
   }
 
-  // 2. Clasificar con IA
-  // TODO: esta función está vacía — conectar el modelo en src/lib/ai.ts → classifyTranscript()
+  // Crear User + Address si la IA los recopiló durante la llamada
+  let userId: string | undefined;
+  if (body.user?.name) {
+    const addressData = body.user.address;
+
+    const user = await prisma.user.create({
+      data: {
+        name: body.user.name,
+        ...(addressData && {
+          address: { create: addressData },
+        }),
+      },
+      include: { address: true },
+    });
+
+    userId = user.id;
+    await updateCall(id, { userId });
+  }
+
+  // Clasificar con IA
+  // TODO: conectar el modelo real en src/lib/ai.ts → classifyTranscript()
   const classification = await classifyTranscript(call.transcript);
 
-  // 3. Crear la emergencia con el resultado de la IA
+  // Vincular la dirección del usuario a la emergencia si existe
+  const userAddressId = userId
+    ? (await prisma.user.findUnique({ where: { id: userId }, select: { address: { select: { id: true }, take: 1 } } }))
+        ?.address[0]?.id
+    : undefined;
+
   const emergency = await createEmergency({
     callId: call.id,
     type: classification.type,
     priority: classification.priority,
     description: classification.description,
-    addressId: classification.addressId,
+    addressId: classification.addressId ?? userAddressId,
     aiMetadata: classification.aiMetadata,
   });
 
-  // 4. Devolver la emergencia lista para que el sistema la asigne
   return Response.json(emergency, { status: 201 });
 }

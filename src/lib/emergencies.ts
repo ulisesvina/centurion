@@ -41,13 +41,22 @@ export async function getEmergencyById(id: string) {
   });
 }
 
-// Lista emergencias pendientes ordenadas por prioridad (CRITICAL primero)
+// Lista emergencias activas ordenadas por prioridad (CRITICAL primero)
+// Incluye transcript para la vista en tiempo real del operador
 export async function listPendingEmergencies() {
   const emergencies = await prisma.emergency.findMany({
     where: { status: { in: ["PENDING", "ASSIGNED", "IN_PROGRESS"] } },
     include: {
-      call: { select: { phoneNumber: true, createdAt: true } },
-      assignment: { include: { operator: { select: { name: true, id: true } } } },
+      call: { select: { phoneNumber: true, transcript: true, createdAt: true } },
+      address: true,
+      assignment: {
+        select: {
+          id: true,
+          assignedAt: true,
+          resolvedAt: true,
+          operator: { select: { id: true, name: true } },
+        },
+      },
     },
   });
 

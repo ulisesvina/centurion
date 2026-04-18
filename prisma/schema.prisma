@@ -24,11 +24,12 @@ enum CallStatus {
 }
 
 enum EmergencyType {
-  MEDICAL //Situaciones relacionadas con urgencias de salud que requieren ambulancias
-  SECURITY //Eventos que requieren la intervención de instituciones policiales o de procuración de justicia
-  PROTECTION // Sucesos que involucran a cuerpos de bomberos, fenómenos climáticos o contingencias que ponen en riesgo a la población
-  ACCIDENT //Incidentes relacionados con el mal funcionamiento de la infraestructura pública
-  OTHER // Otros xd
+  MEDICAL
+  FIRE
+  CRIME
+  ACCIDENT
+  NATURAL_DISASTER
+  OTHER
 }
 
 enum Priority {
@@ -36,14 +37,14 @@ enum Priority {
   HIGH       // urgente
   MEDIUM     // importante
   LOW        // no urgente
-  IMPROCEDENT // llamada falsa o que no requiere atención
+  IRRELEVANT // llamada falsa o que no requiere atención
 }
 
 enum EmergencyStatus {
-  PENDING     // sin asignar
-  ASSIGNED    // operador asignado
-  IN_PROGRESS // operador atendiendo
-  RESOLVED    // resuelto
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
 }
 
 enum OperatorStatus {
@@ -52,102 +53,83 @@ enum OperatorStatus {
   OFFLINE
 }
 
-enum ReportStatus {
-  SUBMITTED   // creado por usuario
-  IN_REVIEW   // siendo evaluado (automático o humano)
-  FORWARDED   // enviado a autoridad correspondiente
-  IN_PROGRESS // autoridad atendiendo
-  RESOLVED    // resuelto
-  REJECTED    // no procede
-}
-
 // ─────────────────────────────────────────────
 // MODELOS
 // ─────────────────────────────────────────────
 
-// Ciudadano registrado en la app
 model User {
-  id           String    @id @default(auto()) @map("_id") @db.ObjectId
-  name         String
-  email        String    @unique
-  phoneNumber  String    @unique
-  passwordHash String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  sessions  Session[]
-  addresses Address[]
-  calls     Call[]
+  id      String    @id @default(auto()) @map("_id") @db.ObjectId
+  name    String
+  address Address[]
+  calls   Call[]
 }
 
-// Sesión activa de un usuario (expira)
-model Session {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  token     String   @unique
-  userId    String   @db.ObjectId
-  user      User     @relation(fields: [userId], references: [id])
-  expiresAt DateTime // si now() > expiresAt → sesión inválida
-  createdAt DateTime @default(now())
+model Operator {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  email       String         @unique
+  badgeNumber String         @unique
+  status      OperatorStatus @default(OFFLINE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  assignments Assignment[]
 }
 
-// Dirección estructurada (México)
 model Address {
   id           String  @id @default(auto()) @map("_id") @db.ObjectId
-  street       String  // nombre de la calle
-  extNumber    String  // número exterior
-  intNumber    String? // número interior (Depto, Piso, etc.)
-  neighborhood String  // colonia
-  city         String  // ciudad o municipio
-  state        String  // estado (ej. "Ciudad de México", "Jalisco")
-  postalCode   String  // código postal (5 dígitos en México)
+  street       String
+  extNumber    String
+  intNumber    String?
+  neighborhood String
+  city         String
+  state        String
+  postalCode   String
   country      String  @default("México")
-  references   String? // referencias adicionales (ej. "entre Calle X y Calle Y")
-  latitude     Float?  // coordenadas opcionales para el mapa
+  references   String?
+  latitude     Float?
   longitude    Float?
 
   userId String? @db.ObjectId
   user   User?   @relation(fields: [userId], references: [id])
 
-  emergencies Emergency[]
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  emergencies Emergency[]
 }
 
-// Llamada entrante del ciudadano
 model Call {
   id          String     @id @default(auto()) @map("_id") @db.ObjectId
   phoneNumber String
   status      CallStatus @default(PENDING)
-  transcript  String?    // conversación completa con el bot de IA
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  transcript  String?
 
   userId String? @db.ObjectId
   user   User?   @relation(fields: [userId], references: [id])
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   emergency Emergency?
 }
 
-// Emergencia clasificada por la IA a partir de la llamada
 model Emergency {
-  id          String          @id @default(auto()) @map("_id") @db.ObjectId
-  callId      String          @unique @db.ObjectId
-  call        Call            @relation(fields: [callId], references: [id])
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  callId String @unique @db.ObjectId
+  call   Call   @relation(fields: [callId], references: [id])
 
   type        EmergencyType
   priority    Priority
-  description String          // resumen generado por la IA
+  description String
   status      EmergencyStatus @default(PENDING)
 
-  // Ubicación del incidente — dirección estructurada o coordenadas GPS
   addressId String?  @db.ObjectId
   address   Address? @relation(fields: [addressId], references: [id])
   latitude  Float?
   longitude Float?
 
-  aiMetadata Json? // datos crudos del modelo de IA (scores, confianza, etc.)
-  aiConfidence Float //Saber
+  aiMetadata Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -155,64 +137,6 @@ model Emergency {
   assignment Assignment?
 }
 
-model Report {
-  id          String       @id @default(auto()) @map("_id") @db.ObjectId
-
-  // Relación con usuario
-  userId      String       @db.ObjectId
-  user        User         @relation(fields: [userId], references: [id])
-
-  // Si viene de una llamada
-  callId      String?      @db.ObjectId
-  call        Call?        @relation(fields: [callId], references: [id])
-
-  // Clasificación IA
-  type        EmergencyType
-  description String
-  status      ReportStatus @default(SUBMITTED)
-
-  aiConfidence Float
-  aiMetadata   Json?
-
-  // Ubicación
-  addressId String?  @db.ObjectId
-  address   Address? @relation(fields: [addressId], references: [id])
-  latitude  Float?
-  longitude Float?
-
-  // A qué autoridad se canalizó
-  forwardedTo String? // ej: "policía municipal", "tránsito", etc.
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Operador humano del 911
-model Operator {
-  id           String         @id @default(auto()) @map("_id") @db.ObjectId
-  name         String
-  email        String         @unique
-  badgeNumber  String         @unique
-  passwordHash String
-  status       OperatorStatus @default(OFFLINE)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-
-  assignments      Assignment[]
-  operatorSessions OperatorSession[]
-}
-
-// Sesión activa de un operador (expira)
-model OperatorSession {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  token      String   @unique
-  operatorId String   @db.ObjectId
-  operator   Operator @relation(fields: [operatorId], references: [id])
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-}
-
-// Asignación de una emergencia a un operador
 model Assignment {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
   emergencyId String    @unique @db.ObjectId
@@ -222,5 +146,5 @@ model Assignment {
 
   assignedAt DateTime  @default(now())
   resolvedAt DateTime?
-  notes      String?   // notas del operador al cerrar el caso
+  notes      String?
 }

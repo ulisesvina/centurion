@@ -12,7 +12,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const body = await request.json();
 
-  const required = ["name", "email", "badgeNumber", "password"];
+  const required = ["name", "email", "badgeNumber"];
   for (const field of required) {
     if (!body[field]) {
       return Response.json({ error: `${field} is required` }, { status: 400 });

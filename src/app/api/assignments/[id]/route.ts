@@ -10,6 +10,14 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
 
-  const resolved = await resolveAssignment(id, body.notes);
-  return Response.json(resolved);
+  try {
+    const resolved = await resolveAssignment(id, body.notes);
+    return Response.json(resolved);
+  } catch (e) {
+    console.error("resolveAssignment error:", e);
+    return Response.json(
+      { error: e instanceof Error ? e.message : "Failed to resolve" },
+      { status: 500 }
+    );
+  }
 }
