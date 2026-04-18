@@ -24,10 +24,11 @@ enum CallStatus {
 }
 
 enum EmergencyType {
-  MEDICAL
-  CRIME
-  ACCIDENT
-  OTHER
+  MEDICAL //Situaciones relacionadas con urgencias de salud que requieren ambulancias
+  SECURITY //Eventos que requieren la intervención de instituciones policiales o de procuración de justicia
+  PROTECTION // Sucesos que involucran a cuerpos de bomberos, fenómenos climáticos o contingencias que ponen en riesgo a la población
+  ACCIDENT //Incidentes relacionados con el mal funcionamiento de la infraestructura pública
+  OTHER // Otros xd
 }
 
 enum Priority {
@@ -35,7 +36,7 @@ enum Priority {
   HIGH       // urgente
   MEDIUM     // importante
   LOW        // no urgente
-  IRRELEVANT // llamada falsa o que no requiere atención
+  IMPROCEDENT // llamada falsa o que no requiere atención
 }
 
 enum EmergencyStatus {
@@ -49,6 +50,15 @@ enum OperatorStatus {
   AVAILABLE
   BUSY
   OFFLINE
+}
+
+enum ReportStatus {
+  SUBMITTED   // creado por usuario
+  IN_REVIEW   // siendo evaluado (automático o humano)
+  FORWARDED   // enviado a autoridad correspondiente
+  IN_PROGRESS // autoridad atendiendo
+  RESOLVED    // resuelto
+  REJECTED    // no procede
 }
 
 // ─────────────────────────────────────────────
@@ -137,11 +147,44 @@ model Emergency {
   longitude Float?
 
   aiMetadata Json? // datos crudos del modelo de IA (scores, confianza, etc.)
+  aiConfidence Float //Saber
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   assignment Assignment?
+}
+
+model Report {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Relación con usuario
+  userId      String       @db.ObjectId
+  user        User         @relation(fields: [userId], references: [id])
+
+  // Si viene de una llamada
+  callId      String?      @db.ObjectId
+  call        Call?        @relation(fields: [callId], references: [id])
+
+  // Clasificación IA
+  type        EmergencyType
+  description String
+  status      ReportStatus @default(SUBMITTED)
+
+  aiConfidence Float
+  aiMetadata   Json?
+
+  // Ubicación
+  addressId String?  @db.ObjectId
+  address   Address? @relation(fields: [addressId], references: [id])
+  latitude  Float?
+  longitude Float?
+
+  // A qué autoridad se canalizó
+  forwardedTo String? // ej: "policía municipal", "tránsito", etc.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Operador humano del 911
