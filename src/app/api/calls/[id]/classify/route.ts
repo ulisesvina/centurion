@@ -47,7 +47,7 @@ export async function POST(
     type: classification.type,
     priority: classification.priority,
     description: classification.description,
-    address: classification.address,
+    addressId: classification.addressId,
     aiMetadata: classification.aiMetadata,
   });
 

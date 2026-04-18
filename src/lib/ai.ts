@@ -5,7 +5,7 @@ export type ClassificationResult = {
   type: EmergencyType;
   priority: Priority;
   description: string;
-  address?: string;
+  addressId?: string; // ID de un Address guardado, o dejar vacío si no hay
   aiMetadata: {
     model: string;
     confidence: number;

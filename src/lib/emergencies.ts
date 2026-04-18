@@ -15,7 +15,7 @@ export async function createEmergency(data: {
   type: EmergencyType;
   priority: Priority;
   description: string;
-  address?: string;
+  addressId?: string;
   latitude?: number;
   longitude?: number;
   aiMetadata?: object;

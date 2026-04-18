@@ -1,12 +1,22 @@
 import { prisma } from "@/lib/prisma";
+import { hashPassword } from "@/lib/auth";
 import type { OperatorStatus } from "@/generated/prisma/enums";
 
 export async function createOperator(data: {
   name: string;
   email: string;
   badgeNumber: string;
+  password: string;
 }) {
-  return prisma.operator.create({ data });
+  const passwordHash = await hashPassword(data.password);
+  return prisma.operator.create({
+    data: { name: data.name, email: data.email, badgeNumber: data.badgeNumber, passwordHash },
+    omit: { passwordHash: true },
+  });
+}
+
+export async function getOperatorByEmail(email: string) {
+  return prisma.operator.findUnique({ where: { email } });
 }
 
 export async function listOperators() {

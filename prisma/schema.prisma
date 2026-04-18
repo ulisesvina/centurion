@@ -55,6 +55,55 @@ enum OperatorStatus {
 // MODELOS
 // ─────────────────────────────────────────────
 
+// Ciudadano registrado en la app
+model User {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String    @unique
+  phoneNumber  String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions  Session[]
+  addresses Address[]
+  calls     Call[]
+}
+
+// Sesión activa de un usuario (expira)
+model Session {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  token     String   @unique
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime // si now() > expiresAt → sesión inválida
+  createdAt DateTime @default(now())
+}
+
+// Dirección estructurada (México)
+model Address {
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
+  street       String  // nombre de la calle
+  extNumber    String  // número exterior
+  intNumber    String? // número interior (Depto, Piso, etc.)
+  neighborhood String  // colonia
+  city         String  // ciudad o municipio
+  state        String  // estado (ej. "Ciudad de México", "Jalisco")
+  postalCode   String  // código postal (5 dígitos en México)
+  country      String  @default("México")
+  references   String? // referencias adicionales (ej. "entre Calle X y Calle Y")
+  latitude     Float?  // coordenadas opcionales para el mapa
+  longitude    Float?
+
+  userId String? @db.ObjectId
+  user   User?   @relation(fields: [userId], references: [id])
+
+  emergencies Emergency[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // Llamada entrante del ciudadano
 model Call {
   id          String     @id @default(auto()) @map("_id") @db.ObjectId
@@ -63,6 +112,9 @@ model Call {
   transcript  String?    // conversación completa con el bot de IA
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+
+  userId String? @db.ObjectId
+  user   User?   @relation(fields: [userId], references: [id])
 
   emergency Emergency?
 }
@@ -78,30 +130,43 @@ model Emergency {
   description String          // resumen generado por la IA
   status      EmergencyStatus @default(PENDING)
 
-  // Ubicación del incidente
-  latitude    Float?
-  longitude   Float?
-  address     String?
+  // Ubicación del incidente — dirección estructurada o coordenadas GPS
+  addressId String?  @db.ObjectId
+  address   Address? @relation(fields: [addressId], references: [id])
+  latitude  Float?
+  longitude Float?
 
-  aiMetadata  Json?           // datos crudos del modelo de IA (scores, confianza, etc.)
+  aiMetadata Json? // datos crudos del modelo de IA (scores, confianza, etc.)
 
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   assignment Assignment?
 }
 
 // Operador humano del 911
 model Operator {
-  id          String         @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
-  email       String         @unique
-  badgeNumber String         @unique
-  status      OperatorStatus @default(OFFLINE)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String         @unique
+  badgeNumber  String         @unique
+  passwordHash String
+  status       OperatorStatus @default(OFFLINE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
-  assignments Assignment[]
+  assignments      Assignment[]
+  operatorSessions OperatorSession[]
+}
+
+// Sesión activa de un operador (expira)
+model OperatorSession {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  token      String   @unique
+  operatorId String   @db.ObjectId
+  operator   Operator @relation(fields: [operatorId], references: [id])
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
 }
 
 // Asignación de una emergencia a un operador
@@ -112,7 +177,7 @@ model Assignment {
   operatorId  String    @db.ObjectId
   operator    Operator  @relation(fields: [operatorId], references: [id])
 
-  assignedAt  DateTime  @default(now())
-  resolvedAt  DateTime?
-  notes       String?   // notas del operador al cerrar el caso
+  assignedAt DateTime  @default(now())
+  resolvedAt DateTime?
+  notes      String?   // notas del operador al cerrar el caso
 }
